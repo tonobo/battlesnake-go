@@ -136,23 +136,18 @@ func (b *Board) VMap() Map {
 		for i, point := range snake.Body[:len(snake.Body)-1] {
 			//for i, point := range snake.Body {
 			point.Snake = snake
-			point.Index = i
 			if i == 0 {
 				point.IsHead = true
 			}
 			b.vmap[point.X][point.Y] = point
 		}
 		snake.Body[len(snake.Body)-1].IsTail = true
-		snake.Body[len(snake.Body)-1].Index = len(snake.Body) - 1
 	}
 	shuffle(fakeTargets)
-	for _, t := range fakeTargets {
-		if len(b.FakeTargets) < MaxFakeTargets &&
-			b.SnakeOn(t.Vec()) == nil &&
-			len(b.SnakesAround(t.Vec())) == 0 {
-			t.FakeTarget = true
-			b.FakeTargets = append(b.FakeTargets, t)
-		}
+	for i := 0; i < MaxFakeTargets; i++ {
+		t := fakeTargets[i]
+		t.FakeTarget = true
+		b.FakeTargets = append(b.FakeTargets, t)
 	}
 	return b.vmap
 }

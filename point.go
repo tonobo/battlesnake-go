@@ -15,6 +15,7 @@ type Point struct {
 	X     int `json:"x"`
 	score int
 	Index int
+	Board *Board `json:"-"`
 }
 
 func (p *Point) Vec() vec2.Vector {
