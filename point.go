@@ -1,6 +1,10 @@
 package main // import "github.com/tonobo/battlesnake-go"
 
-import "github.com/joonazan/vec2"
+import (
+	"fmt"
+
+	"github.com/joonazan/vec2"
+)
 
 type Map [][]Target
 type Target interface {
@@ -24,14 +28,15 @@ func (p *Point) Vec() vec2.Vector {
 
 func (p *Point) BumpScore(s ...int) {
 	if len(s) > 0 {
-		p.score = p.score + s[0]
+		p.Board.boardScoreMap[fmt.Sprintf("%s", p.Vec())] += s[0]
 	} else {
-		p.score++
+		p.Board.boardScoreMap[fmt.Sprintf("%s", p.Vec())] += 1
 	}
 }
 
 func (p *Point) Score() int {
-	return p.score
+	i, _ := p.Board.boardScoreMap[fmt.Sprintf("%s", p.Vec())]
+	return i
 }
 
 type Empty struct {

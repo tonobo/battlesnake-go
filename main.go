@@ -57,6 +57,7 @@ func boolPtr(b bool) *bool {
 func (r *Request) Init() {
 	r.Board.StepLimit = StepLimit
 	r.Board.Me = r.Self
+	r.Board.boardScoreMap = map[string]int{}
 	r.Board.Request = r
 	for x, rows := range r.Board.VMap() {
 		for y, target := range rows {

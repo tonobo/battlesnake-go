@@ -75,16 +75,6 @@ func (r *Route) CheckBackRoute() {
 	}
 }
 
-/*
-	TODO:
-
-	* Check for risky moves 887f11d5-67ca-44a7-b0a4-57073030615f
-	  The first movement will only selected by to calculated distance, we might also add a kind of
-		risk score
-
-  * Check field score snake-tonoboDev-df2174ce-c748-4bdd-b70d-acd486e4af90.log
-
-*/
 func (r *Route) Resolve() {
 	defer func() {
 		if r.StepCount < r.Board.StepLimit && !r.Unresolved && !r.Enemy {

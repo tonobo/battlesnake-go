@@ -23,8 +23,9 @@ type Board struct {
 	StepLimit int
 	debug     bool
 
-	vmap        Map      `json:"-"`
-	FakeTargets []Target `json:"-"`
+	vmap          Map      `json:"-"`
+	FakeTargets   []Target `json:"-"`
+	boardScoreMap map[string]int
 }
 
 func (b *Board) LogFile() io.Writer {
@@ -119,7 +120,7 @@ func (b *Board) VMap() Map {
 	for x := 0; x < b.X; x++ {
 		b.vmap[x] = make([]Target, b.Y)
 		for y := 0; y < b.Y; y++ {
-			ep := &Empty{Point{X: x, Y: y}, false}
+			ep := &Empty{Point{X: x, Y: y, Board: b}, false}
 			percentY := float64(y) / float64(b.Y) * 100.0
 			percentX := float64(x) / float64(b.X) * 100.0
 			if percentX >= minPercent && percentX <= maxPercent &&
@@ -130,17 +131,20 @@ func (b *Board) VMap() Map {
 		}
 	}
 	for _, food := range b.Food {
+		food.Board = b
 		b.vmap[food.X][food.Y] = food
 	}
 	for _, snake := range b.Snakes {
 		for i, point := range snake.Body[:len(snake.Body)-1] {
 			//for i, point := range snake.Body {
+			point.Board = b
 			point.Snake = snake
 			if i == 0 {
 				point.IsHead = true
 			}
 			b.vmap[point.X][point.Y] = point
 		}
+		snake.Body[len(snake.Body)-1].Board = b
 		snake.Body[len(snake.Body)-1].IsTail = true
 	}
 	shuffle(fakeTargets)
