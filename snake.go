@@ -2,9 +2,10 @@ package main // import "github.com/tonobo/battlesnake-go"
 
 type SnakePoint struct {
 	Point
-	Snake  *Snake `json:"-"`
-	IsHead bool
-	IsTail bool
+	Snake       *Snake `json:"-"`
+	IsHead      bool
+	IsTail      bool
+	EvictOnStep int
 }
 
 func (sp *SnakePoint) Type() string {
@@ -23,25 +24,9 @@ type Snake struct {
 	aimForFood *bool
 }
 
-func (s *Snake) AimForFood() bool {
-	if s.aimForFood != nil {
-		return *s.aimForFood
+func (s *Snake) Enemy() bool {
+	if s.Me != nil {
+		return true
 	}
-	s.aimForFood = boolPtr(false)
-	if len(s.Body) < SnakeMinLenth {
-		s.aimForFood = boolPtr(true)
-		return *s.aimForFood
-	}
-	if s.Health < FoodHealthLimit {
-		s.aimForFood = boolPtr(true)
-		return *s.aimForFood
-	}
-	for _, snake := range s.Board.Snakes {
-		if snake.Me != nil && len(snake.Body) > len(s.Body) {
-			// Another snake is larger
-			s.aimForFood = boolPtr(true)
-			return *s.aimForFood
-		}
-	}
-	return *s.aimForFood
+	return false
 }

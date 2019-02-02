@@ -14,6 +14,7 @@ type Route struct {
 
 	ID            int
 	StepCount     int
+	Squares       int
 	Steps         Movements
 	Score         float64
 	FieldScore    float64
@@ -80,8 +81,11 @@ func (r *Route) Resolve() {
 		if r.StepCount < r.Board.StepLimit && !r.Unresolved && !r.Enemy {
 			r.Board.StepLimit = r.StepCount
 		}
+		if len(r.Steps) > 0 {
+			r.Squares = r.Board.EmptyConnectedSquaresAround(r.Steps[0].Target)
+		}
 		r.CheckBackRoute()
-		r.Score = r.Score / float64(r.StepCount)
+		r.Score = r.Score / float64(r.StepCount+r.Squares)
 	}()
 	last := &Movement{Target: r.From.Vec()}
 	if r.Enemy && r.Board.FoodAround(last.Target) {
@@ -93,21 +97,17 @@ func (r *Route) Resolve() {
 		for direction, vec := range Direction2Vector {
 			next := last.Target.Minus(vec)
 			movement := &Movement{Direction: direction, Target: next, Magnitude: next.Minus(r.To.Vec()).Length()}
-			if r.Board.Blocked(next) {
+			if r.Board.Blocked(next, r.StepCount) {
 				continue
 			}
 			if r.AlreadyUsed(next) {
 				continue
 			}
 			if !r.Enemy {
-				if r.Board.Me.AimForFood() && r.Board.FoodOn(next) != nil {
-					r.Info += "F"
-					r.Score += float64(FoodBumpScore)
-				}
 				r.Score += float64(r.Board.VMap()[int(next.X)][int(next.Y)].Score())
 				r.FieldScore += float64(r.Board.VMap()[int(next.X)][int(next.Y)].Score())
 				if r.StepCount < BestMoveSelection {
-					for range r.Board.SnakesAround(last.Target) {
+					for range r.Board.SnakesAround(last.Target, r.StepCount) {
 						movement.Magnitude += 1
 					}
 				}
@@ -125,13 +125,13 @@ func (r *Route) Resolve() {
 		last = moves[0]
 		r.AddStep(last)
 		if !r.Enemy {
-			for range r.Board.SnakesAround(last.Target) {
+			for range r.Board.SnakesAround(last.Target, r.StepCount) {
 				r.Info += "S"
 				r.Score += float64(SnakeAroundBump)
 			}
 		}
 		if r.StepCount == 1 {
-			for _, snake := range r.Board.SnakesAround(last.Target) {
+			for _, snake := range r.Board.SnakesAround(last.Target, r.StepCount) {
 				// If neighbor snake is larger or equal
 				if len(snake.Body) >= len(r.Board.Me.Body) {
 					r.Info += "U"
@@ -172,11 +172,13 @@ func (r *Route) Print() {
 	if r.StepCount > 0 {
 		fmt.Fprintf(r.Board.LogFile(),
 			"%d. %s: x: %0.f, y: %0.f, distance: %f, step count: %d,"+
-				" step: %s%v, score: %0.2f, field_score: %0.2f, aborted: %t, unresolved: %t, tail_reachable: %s, info: %s\n",
+				" step: %s%v, score: %0.2f, field_score: %0.2f, aborted: %t"+
+				", unresolved: %t, tail_reachable: %s, info: %s, squares: %d\n",
 			r.ID, r.To.Type(), vec.X, vec.Y,
 			r.From.Vec().Minus(vec).Length(),
 			r.StepCount, r.Steps[0].Direction, r.Steps[0].Target, r.Score,
-			r.FieldScore, r.Aborted, r.Unresolved, tail, r.Info)
+			r.FieldScore, r.Aborted, r.Unresolved, tail, r.Info,
+			r.Squares)
 		return
 	}
 	fmt.Fprintf(r.Board.LogFile(),

@@ -33,12 +33,12 @@ var (
 	BorderBumpScore          = 10
 	MaxFakeTargets           = 6
 	MinBackrouteSteps        = 15
-	FakeTargetsScope         = 70 // how many percent from board
+	FakeTargetsScope         = 50 // how many percent from board
 	EnemyHeadBumpScore       = 5
 	FoodBumpScore            = 0
 	SnakeMinLenth            = 2
 	EnemyBumpScore           = 5
-	SnakeAroundBump          = 5
+	SnakeAroundBump          = 20
 	SmallSnakeAroundBump     = 0
 	SnakeIDList              = []string{"a", "b", "c", "d", "e", "g", "h", "j", "k"}
 )
@@ -58,6 +58,7 @@ func (r *Request) Init() {
 	r.Board.StepLimit = StepLimit
 	r.Board.Me = r.Self
 	r.Board.boardScoreMap = map[string]int{}
+	r.Board.boardSquareMap = map[string]int{}
 	r.Board.Request = r
 	for x, rows := range r.Board.VMap() {
 		for y, target := range rows {

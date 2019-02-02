@@ -23,9 +23,12 @@ type Board struct {
 	StepLimit int
 	debug     bool
 
-	vmap          Map      `json:"-"`
-	FakeTargets   []Target `json:"-"`
-	boardScoreMap map[string]int
+	vmap               Map      `json:"-"`
+	FakeTargets        []Target `json:"-"`
+	boardScoreMap      map[string]int
+	boardSquareMap     map[string]int
+	disableFakeTargets bool
+	disableFoodRoutes  bool
 }
 
 func (b *Board) LogFile() io.Writer {
@@ -70,7 +73,27 @@ func (b *Board) BumpScoreAround(vec vec2.Vector, score int) {
 	}
 }
 
-func (b *Board) SnakesAround(vec vec2.Vector) []*Snake {
+func (b *Board) EmptyConnectedSquaresAround(vec vec2.Vector) int {
+	if squares, ok := b.boardSquareMap[fmt.Sprintf("%s", vec)]; ok {
+		return squares
+	}
+	squareMap := make(map[vec2.Vector]struct{}, 0)
+	next := vec
+	for i := 0; i < b.X*b.Y; i++ {
+		for _, direction := range Direction2Vector {
+			tmp := next.Minus(direction)
+			if _, ok := squareMap[tmp]; ok || b.Blocked(tmp, 0) {
+				continue
+			}
+			squareMap[tmp] = struct{}{}
+			next = tmp
+		}
+	}
+	b.boardSquareMap[fmt.Sprintf("%s", vec)] = len(squareMap)
+	return len(squareMap)
+}
+
+func (b *Board) SnakesAround(vec vec2.Vector, steps int) []*Snake {
 	snakes := []*Snake{}
 	for _, direction := range Direction2Vector {
 		next := vec.Minus(direction)
@@ -78,7 +101,7 @@ func (b *Board) SnakesAround(vec vec2.Vector) []*Snake {
 			continue
 		}
 		// Check only for snake heads
-		if sp := b.SnakeOn(next); sp != nil && (sp.IsHead || sp.IsTail) && sp.Snake.Me != nil {
+		if sp := b.SnakeOn(next, steps); sp != nil && (sp.IsHead || sp.IsTail) && sp.Snake.Me != nil {
 			snakes = append(snakes, sp.Snake)
 		}
 	}
@@ -135,16 +158,17 @@ func (b *Board) VMap() Map {
 		b.vmap[food.X][food.Y] = food
 	}
 	for _, snake := range b.Snakes {
-		for i, point := range snake.Body[:len(snake.Body)-1] {
+		snakeLen := len(snake.Body)
+		for i, point := range snake.Body {
 			//for i, point := range snake.Body {
 			point.Board = b
+			point.EvictOnStep = snakeLen - i
 			point.Snake = snake
 			if i == 0 {
 				point.IsHead = true
 			}
 			b.vmap[point.X][point.Y] = point
 		}
-		snake.Body[len(snake.Body)-1].Board = b
 		snake.Body[len(snake.Body)-1].IsTail = true
 	}
 	shuffle(fakeTargets)
@@ -166,9 +190,9 @@ func (b *Board) Outside(vec vec2.Vector) bool {
 	return false
 }
 
-func (b *Board) SnakeOn(vec vec2.Vector) *SnakePoint {
+func (b *Board) SnakeOn(vec vec2.Vector, steps int) *SnakePoint {
 	if target := b.Target(vec); target != nil {
-		if sp, ok := target.(*SnakePoint); ok {
+		if sp, ok := target.(*SnakePoint); ok && sp.EvictOnStep > steps {
 			return sp
 		}
 	}
@@ -184,11 +208,18 @@ func (b *Board) FoodOn(vec vec2.Vector) *Food {
 	return nil
 }
 
-func (b *Board) Blocked(vec vec2.Vector) bool {
+func (b *Board) Blocked(vec vec2.Vector, steps int) bool {
 	if b.Outside(vec) {
 		return true
 	}
-	if b.SnakeOn(vec) != nil {
+	if b.SnakeOn(vec, steps) != nil {
+		return true
+	}
+	sp, ok := b.Target(vec).(*SnakePoint)
+	if ok && sp.IsTail && sp.Snake.Enemy() && b.FoodAround(sp.Snake.Body[0].Vec()) {
+		return true
+	}
+	if ok && sp.IsTail && !sp.Snake.Enemy() && len(sp.Snake.Body) < SnakeMinLenth {
 		return true
 	}
 	return false
@@ -236,6 +267,43 @@ func (b *Board) FoodRoutes() Routes {
 	return r
 }
 
+func (b *Board) SnakeHeadRoutes() Routes {
+	r := make(Routes, 0)
+	for i, snake := range b.Snakes {
+		route := &Route{
+			ID:           i + 4000,
+			From:         b.Me.Body[0],
+			To:           snake.Body[0],
+			Board:        b,
+			stepRegister: make(map[vec2.Vector]struct{}),
+			Steps:        Movements{},
+		}
+		route.Resolve()
+		route.Print()
+		r = append(r, route)
+	}
+	return r
+}
+
+func (b *Board) CornerRoutes() Routes {
+	r := make(Routes, 0)
+	for i, target := range []Target{b.vmap[1][1], b.vmap[1][b.Y-2],
+		b.vmap[b.X-2][1], b.vmap[b.X-2][b.Y-2]} {
+		route := &Route{
+			ID:           i + 6000,
+			From:         b.Me.Body[0],
+			To:           target,
+			Board:        b,
+			stepRegister: make(map[vec2.Vector]struct{}),
+			Steps:        Movements{},
+		}
+		route.Resolve()
+		route.Print()
+		r = append(r, route)
+	}
+	return r
+}
+
 func (b *Board) FakeRoutes() Routes {
 	r := make(Routes, len(b.FakeTargets))
 	for i, target := range b.FakeTargets {
@@ -256,12 +324,17 @@ func (b *Board) FakeRoutes() Routes {
 
 func (b *Board) Routes() Routes {
 	b.OtherSnakesRoutes()
-	r := b.FoodRoutes()
+	r := Routes{}
+	r = append(r, b.FoodRoutes()...)
 	//if len(b.Me.Body) > 3 {
 	//	r = append(r, b.TailRoute())
 	//}
-	if b.Me.Health > SnakeHealthCritical {
-		r = append(r, b.FakeRoutes()...)
+	if !b.disableFakeTargets {
+		if b.Me.Health > SnakeHealthCritical {
+			r = append(r, b.FakeRoutes()...)
+			r = append(r, b.CornerRoutes()...)
+			//	r = append(r, b.SnakeHeadRoutes()...)
+		}
 	}
 	for _, route := range r {
 		if !route.Unresolved {
